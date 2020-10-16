@@ -5,7 +5,6 @@ import (
 	"flag"
 	"time"
 
-	"github.com/lvhuat/textformatter"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 )
@@ -25,7 +24,8 @@ type EventRejectOrder struct {
 }
 
 func main() {
-	logrus.SetFormatter(&textformatter.TextFormatter{})
+	//logrus.SetFormatter(&textformatter.TextFormatter{})
+	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
 
 	flag.Parse()
 
