@@ -141,7 +141,7 @@ func place(clientId string, market string, side string, price float64, _type str
 		SendDingTalkAsync(fmt.Sprintln("发送订单失败:", market, side, price, _type, size, reduce, "原因：", result.Error))
 	}
 
-	log.Infoln("PlaceResult", string(b))
+	log.Infoln("http PlaceResult:", string(b))
 }
 
 func mustFloat(s string) float64 {

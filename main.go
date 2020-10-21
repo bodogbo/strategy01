@@ -59,6 +59,10 @@ func main() {
 		}
 	}
 
+	SendDingTalkAsync("test grid started")
+	time.Sleep(time.Second)
+	SendDingTalkAsync("test grid started 2")
+
 	if *mf {
 		mfLoop()
 		return

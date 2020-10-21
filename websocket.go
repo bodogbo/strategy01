@@ -35,7 +35,7 @@ func (client *WebsocketClient) loop() {
 		type_ := gjson.GetBytes(b, "type").String()
 		channel := gjson.GetBytes(b, "channel").String()
 
-		logrus.Println(string(b))
+		logrus.Printf("websocket: %s", string(b))
 		switch type_ {
 		case "update":
 			switch channel {

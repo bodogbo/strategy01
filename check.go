@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,7 +67,8 @@ func check() bool {
 		// 买入仅仅当行情大于格子价格才会形成挂单
 		if grid.OpenChance > 0.0 && grid.OpenAt <= bid1 && grid.OpenAt > (bid1*0.86) {
 			clientId := uuid.New().String()
-			place(clientId, perpName, "buy", grid.OpenAt, "limit", grid.OpenChance, false, true)
+			//place(clientId, perpName, "buy", grid.OpenAt, "limit", grid.OpenChance, false, true)
+			place(clientId, perpName, "buy", grid.OpenAt, "limit", grid.Qty, false, true)
 			order := &GridOrder{
 				ClientId: clientId,
 				Qty:      grid.Qty,
@@ -77,11 +79,12 @@ func check() bool {
 			grid.openOrders.add(order)
 			orderMap.add(order)
 			grid.OpenChance -= grid.Qty
+			changed = true
 		}
 
 		if grid.CloseChance > 0.0 && grid.CloseAt < ask1*1.14 {
 			clientId := uuid.New().String()
-			place(clientId, perpName, "sell", grid.CloseAt, "limit", grid.CloseChance, false, false)
+			place(clientId, perpName, "sell", grid.CloseAt, "limit", grid.Qty, false, false)
 			order := &GridOrder{
 				ClientId: clientId,
 				Qty:      grid.Qty,
@@ -92,6 +95,7 @@ func check() bool {
 			grid.closeOrders.add(order)
 			orderMap.add(order)
 			grid.CloseChance -= grid.Qty
+			changed = true
 		}
 
 		if changed {
@@ -142,6 +146,9 @@ func onOrderChange(order *Order) {
 
 		// 从全局订单表中移除订单
 		orderMap.remove(order.ClientID)
+
+		// 发送dingding
+		SendDingTalkAsync(fmt.Sprintf("order closed, price:%s, side:%s filledQty:%f", order.Price, order.Side, delta))
 	}
 }
 
