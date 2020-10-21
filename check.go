@@ -40,7 +40,7 @@ func check() bool {
 	bid1, ask1 := perp.Bid, perp.Ask
 
 	// 撤掉离盘口太远的订单
-	for _, grid := range grids {
+	for _, grid := range gGrids {
 		// 低于当前盘口太远的买档位撤销
 		for _, order := range grid.openOrders.orders {
 			if grid.OpenAt < bid1 {
@@ -63,7 +63,7 @@ func check() bool {
 	}
 
 	changed := false
-	for index, grid := range grids {
+	for index, grid := range gGrids {
 		// 买入仅仅当行情大于格子价格才会形成挂单
 		if grid.OpenChance > 0.0 && grid.OpenAt <= bid1 && grid.OpenAt > (bid1*0.86) {
 			clientId := uuid.New().String()
@@ -127,6 +127,7 @@ func onOrderChange(order *Order) {
 
 	// 订单未处理成交部分
 	if delta > 0.0 {
+		gridOrder.EQty = delta
 		if order.Side == "buy" {
 			grid.CloseChance += delta
 		} else {

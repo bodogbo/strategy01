@@ -31,7 +31,7 @@ var (
 	// 常规价格检查间隔
 	checkInterval = time.Millisecond * 1500
 
-	grids = []*TradeGrid{
+	gGrids = []*TradeGrid{
 		// 说明
 		// 注意1: 开仓触发价差必须大于最大平仓触发价差，且必须升序排列
 		// 注意2: 平仓触发价差必须小于最小开仓触发价格，且必须逆序排列
@@ -105,7 +105,7 @@ func debugGrid() {
 	log.Println("FutureName:", futureName)
 	log.Println("Grids Bellow:")
 	var totalQty float64
-	for index, grid := range grids {
+	for index, grid := range gGrids {
 		gridQty := float64(grid.CloseChance+grid.OpenChance) * grid.Qty
 		totalQty += gridQty
 		log.Printf("[%03d] %v %v %v %v %v %v %v %v -- gridQty=%v accQty=%v distance=%0.6v", index,
@@ -198,7 +198,7 @@ func writeGridCurrent() {
 	buf := bytes.NewBuffer(nil)
 	fmt.Fprintf(buf, "%s,%s,,,,,,\n", perpName, futureName)
 	fmt.Fprintf(buf, "openDiff,closeDiff,openChance,closeChance,qty,closeOnly,openOnly,oneShoot\n")
-	for _, grid := range grids {
+	for _, grid := range gGrids {
 		fmt.Fprintf(buf, "%v,%v,%v,%v,%v,%v,%v,%v\n", grid.OpenAt, grid.CloseAt, grid.OpenChance, grid.CloseChance, grid.Qty, excelBool(grid.CloseOnly), excelBool(grid.OpenOnly), excelBool(grid.OneShoot))
 	}
 
@@ -220,9 +220,9 @@ func loadGridConfigAndAssign(file string) {
 
 	perpName = records[0][0]
 	futureName = records[0][1]
-	grids = grids[:0]
+	gGrids = gGrids[:0]
 	for row := 2; row < len(records); row++ {
-		grids = append(grids, &TradeGrid{
+		gGrids = append(gGrids, &TradeGrid{
 			OpenAt:      mustFloat(records[row][0]),
 			CloseAt:     mustFloat(records[row][1]),
 			OpenChance:  mustFloat(records[row][2]),
@@ -272,9 +272,10 @@ func loadBaseConfigAndAssign(file string) {
 }
 
 type GridOrder struct {
-	ClientId   string
-	Id         int64
-	Qty        float64
+	ClientId string
+	Id       int64
+	Qty      float64
+	// 已经被执行的qty
 	EQty       float64
 	CreateAt   time.Time
 	UpdateTime time.Time
