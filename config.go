@@ -10,6 +10,10 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"gopkg.in/yaml.v2"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -31,56 +35,44 @@ var (
 	// 常规价格检查间隔
 	checkInterval = time.Millisecond * 1500
 
-	gGrids = []*TradeGrid{
-		// 说明
-		// 注意1: 开仓触发价差必须大于最大平仓触发价差，且必须升序排列
-		// 注意2: 平仓触发价差必须小于最小开仓触发价格，且必须逆序排列
-		// 注意3: 请根据实际账号情况配置，本程序暂无异常处理，始终认为下单即成功
-		// 注意4: 最大仓量是当前价差网格前面所有仓量的总和，严控仓位。
-		// 支持以下设置：
-		// 	- 开仓触发价差
-		//  - 平仓触发价差
-		//  - 开仓初始机会
-		//  - 平仓初始机会
-		//  - 每次下单量，机会触发时，将分多次进行下单，每次下单的单量
-		//  - 仅平仓，忽略开仓
-		//  - 仅开仓，忽略平仓
-		//  - 一次性开平，开仓会增加平仓机会，平仓不会增加开仓机会，但初始平仓机会依然有效
-
-		//{OpenDiff: 1.70, CloseDiff: 1.30, OpenChance: 0, CloseChance: 55, Qty: 2, CloseOnly: false, OpenOnly: false, OneShoot: false},
-		//{OpenDiff: 2.00, CloseDiff: 1.1, OpenChance: 30, CloseChance: 0, Qty: 2},
-		//{OpenDiff: 2.30, CloseDiff: 0.3, OpenChance: 30, CloseChance: 0, Qty: 2},
-		//{OpenDiff: 3.00, CloseDiff: 0.2, OpenChance: 30, CloseChance: 0, Qty: 2},
-	}
+	grids = []*TradeGrid{}
 
 	orderMap = NewOrderMap()
 
 	client *FtxClient
 
 	lastPlaceTime time.Time
+
+	ask1 float64
+	bid1 float64
+
+	profitTotal float64
 )
 
+type PersistData struct {
+	Grids []*TradeGrid
+}
+
 type OrderMap struct {
-	// mutex  sync.Mutex
-	orders map[string]*GridOrder
+	Orders map[string]*GridOrder
 }
 
 func NewOrderMap() *OrderMap {
 	return &OrderMap{
-		orders: map[string]*GridOrder{},
+		Orders: map[string]*GridOrder{},
 	}
 }
 
 func (orderm *OrderMap) add(order *GridOrder) {
 	// orderm.mutex.Lock()
 	// defer orderm.mutex.Unlock()
-	orderm.orders[order.ClientId] = order
+	orderm.Orders[order.ClientId] = order
 }
 
 func (orderm *OrderMap) RangeOver(fn func(order *GridOrder) bool) {
 	// orderm.mutex.Lock()
 	// defer orderm.mutex.Unlock()
-	for _, order := range orderm.orders {
+	for _, order := range orderm.Orders {
 		if !fn(order) {
 			break
 		}
@@ -90,13 +82,13 @@ func (orderm *OrderMap) RangeOver(fn func(order *GridOrder) bool) {
 func (orderm *OrderMap) remove(clientId string) {
 	// orderm.mutex.Lock()
 	// defer orderm.mutex.Unlock()
-	delete(orderm.orders, clientId)
+	delete(orderm.Orders, clientId)
 }
 
 func (orderm *OrderMap) get(clientId string) (*GridOrder, bool) {
 	// orderm.mutex.Lock()
 	// defer orderm.mutex.Unlock()
-	order, found := orderm.orders[clientId]
+	order, found := orderm.Orders[clientId]
 	return order, found
 }
 
@@ -105,19 +97,18 @@ func debugGrid() {
 	log.Println("FutureName:", futureName)
 	log.Println("Grids Bellow:")
 	var totalQty float64
-	for index, grid := range gGrids {
-		gridQty := float64(grid.CloseChance+grid.OpenChance) * grid.Qty
+	for index, grid := range grids {
+		gridQty := float64(grid.CloseChance + grid.OpenChance)
 		totalQty += gridQty
-		log.Printf("[%03d] %v %v %v %v %v %v %v %v -- gridQty=%v accQty=%v distance=%0.6v", index,
-			grid.OpenAt, grid.CloseAt, grid.OpenChance, grid.CloseChance, grid.Qty,
-			grid.CloseOnly, grid.OpenOnly, grid.OneShoot, gridQty, totalQty,
+		log.Printf("[%03d] %v %v %v %v -- gridQty=%v accQty=%v distance=%0.6v", index,
+			grid.OpenAt, grid.CloseAt, grid.OpenChance, grid.CloseChance, gridQty, totalQty,
 			grid.OpenAt-grid.CloseAt,
 		)
 	}
 }
 
 func place(clientId string, market string, side string, price float64, _type string, size float64, reduce bool, post bool) {
-	log.Infoln("PlaceOrder", market, side, price, _type, size, "reduce", reduce, "postonly", post)
+	log.Infoln("PlaceOrder", clientId, market, side, price, _type, size, "reduce", reduce, "postonly", post)
 	if *testMode {
 		return
 	}
@@ -197,9 +188,9 @@ func excelBool(b bool) int {
 func writeGridCurrent() {
 	buf := bytes.NewBuffer(nil)
 	fmt.Fprintf(buf, "%s,%s,,,,,,\n", perpName, futureName)
-	fmt.Fprintf(buf, "openDiff,closeDiff,openChance,closeChance,qty,closeOnly,openOnly,oneShoot\n")
-	for _, grid := range gGrids {
-		fmt.Fprintf(buf, "%v,%v,%v,%v,%v,%v,%v,%v\n", grid.OpenAt, grid.CloseAt, grid.OpenChance, grid.CloseChance, grid.Qty, excelBool(grid.CloseOnly), excelBool(grid.OpenOnly), excelBool(grid.OneShoot))
+	fmt.Fprintf(buf, "openDiff,closeDiff,openChance,closeChance\n")
+	for _, grid := range grids {
+		fmt.Fprintf(buf, "%v,%v,%v,%v\n", grid.OpenAt, grid.CloseAt, grid.OpenChance, grid.CloseChance)
 	}
 
 	ioutil.WriteFile(perpName+"_grid_runtime.csv", buf.Bytes(), 0666)
@@ -220,21 +211,47 @@ func loadGridConfigAndAssign(file string) {
 
 	perpName = records[0][0]
 	futureName = records[0][1]
-	gGrids = gGrids[:0]
+	grids = grids[:0]
 	for row := 2; row < len(records); row++ {
-		gGrids = append(gGrids, &TradeGrid{
+		grids = append(grids, &TradeGrid{
+			Uuid:        uuid.New().String(),
 			OpenAt:      mustFloat(records[row][0]),
 			CloseAt:     mustFloat(records[row][1]),
 			OpenChance:  mustFloat(records[row][2]),
 			CloseChance: mustFloat(records[row][3]),
-			Qty:         mustFloat(records[row][4]),
-			CloseOnly:   mustBool(records[row][5]),
-			OpenOnly:    mustBool(records[row][6]),
-			OneShoot:    mustBool(records[row][7]),
-			openOrders:  NewOrderMap(),
-			closeOrders: NewOrderMap(),
+			OpenOrders:  NewOrderMap(),
+			CloseOrders: NewOrderMap(),
 		})
 	}
+}
+
+func loadFromSaveFile(file string) error {
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	var persistItem GridPersistItem
+	if err := yaml.Unmarshal(b, &persistItem); err != nil {
+		return err
+	}
+
+	perpName = persistItem.Symbol
+	grids = persistItem.Grids
+	for _, grid := range grids {
+		profitTotal += grid.CloseTotal * (grid.CloseAt - grid.OpenAt)
+
+		for _, order := range grid.OpenOrders.Orders {
+			orderMap.add(order)
+			order.Grid = grid
+		}
+
+		for _, order := range grid.CloseOrders.Orders {
+			orderMap.add(order)
+			order.Grid = grid
+		}
+	}
+
+	return nil
 }
 
 func loadBaseConfigAndAssign(file string) {
@@ -279,23 +296,22 @@ type GridOrder struct {
 	EQty       float64
 	CreateAt   time.Time
 	UpdateTime time.Time
-	DeleteAt   time.Time
-	Grid       *TradeGrid
+	DeleteAt   time.Time  `yaml:"-"`
+	Grid       *TradeGrid `yaml:"-"`
 	Side       string
 }
 
 type TradeGrid struct {
+	Uuid        string
 	OpenAt      float64
 	CloseAt     float64
 	OpenChance  float64
 	CloseChance float64
-	Qty         float64
-	CloseOnly   bool
-	OpenOnly    bool
-	OneShoot    bool
 
-	openOrders  *OrderMap
-	closeOrders *OrderMap
+	OpenTotal   float64
+	CloseTotal  float64
+	OpenOrders  *OrderMap
+	CloseOrders *OrderMap
 }
 
 type Config struct {

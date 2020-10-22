@@ -30,7 +30,7 @@ func recoverGridFromOpenOrdersOnInit() (err error) {
 }
 
 func getTradeGridByOpenPrice(openPrice float64) (grid *TradeGrid) {
-	for _, grid := range gGrids {
+	for _, grid := range grids {
 		if grid.OpenAt != openPrice {
 			continue
 		}
@@ -42,7 +42,7 @@ func getTradeGridByOpenPrice(openPrice float64) (grid *TradeGrid) {
 }
 
 func getTradeGridByClosePrice(openPrice float64) (grid *TradeGrid) {
-	for _, grid := range gGrids {
+	for _, grid := range grids {
 		if grid.CloseAt != openPrice {
 			continue
 		}

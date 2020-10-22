@@ -2,3 +2,5 @@ config.json
 grid.csv
 strategy01
 __debug_bin
+save.yaml
+*.csv
