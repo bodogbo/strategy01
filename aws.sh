@@ -6,5 +6,6 @@ GOOS=linux GOARCH=amd64 go build
 scp -i ~/dev/aws/walkaws.pem strategy01 ubuntu@ec2-34-222-69-66.us-west-2.compute.amazonaws.com:/home/ubuntu/uniperpgrid
 scp -i ~/dev/aws/walkaws.pem config.json ubuntu@ec2-34-222-69-66.us-west-2.compute.amazonaws.com:/home/ubuntu/uniperpgrid
 scp -i ~/dev/aws/walkaws.pem  uniperp-grid.csv ubuntu@ec2-34-222-69-66.us-west-2.compute.amazonaws.com:/home/ubuntu/uniperpgrid
+scp -i ~/dev/aws/walkaws.pem  gen_small_mid_grid_csv.py ubuntu@ec2-34-222-69-66.us-west-2.compute.amazonaws.com:/home/ubuntu/uniperpgrid
 
 
